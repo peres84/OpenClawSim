@@ -1,0 +1,132 @@
+## Guide: Securing OpenClaw on Hetzner via Tailscale (2026)
+
+This README documents the exact, verified steps to hide your OpenClaw gateway behind a private Tailscale tunnel. This setup ensures your AI dashboard is accessible only to your private devices, with full HTTPS encryption, while the public internet remains locked out.
+
+---
+
+### 1. Prerequisites
+
+* A **Hetzner VPS** running Ubuntu/Linux.
+* A **Windows Laptop** (or any client machine).
+* A **Tailscale Account** (Free tier).
+
+---
+
+### 2. Infrastructure Setup (Hetzner & Tailscale)
+
+#### Install Tailscale on Hetzner
+
+1. **Login via SSH:** `ssh pj@your-public-ip`
+2. **Install:** `curl -fsSL https://tailscale.com/install.sh | sh`
+3. **Authenticate:** `sudo tailscale up`
+* Follow the link provided to add the server to your Tailnet.
+
+
+4. **Identify your MagicDNS Name:** * Run `tailscale status`.
+* Find your server name (e.g., `ubuntu-server-webs.tail07567a.ts.net`).
+
+
+
+#### Configure the Hetzner Firewall
+
+In your Hetzner Cloud Console, set your firewall rules to **Zero Trust**:
+
+* **Allow UDP Port 41641** from **Any** (Required for Tailscale connectivity).
+* **Allow TCP Port 22** only from **100.64.0.0/10** (Allows SSH only via Tailscale).
+* **Remove** any rules allowing Port 18789 or Port 22 to the public (0.0.0.0/0).
+
+---
+
+### 3. Securing the Gateway (SSL/TLS)
+
+To remove the "Connection Not Private" warning, you must generate local certificates using Tailscale’s built-in feature.
+
+1. **Enable HTTPS** in your [Tailscale DNS Admin Console](https://login.tailscale.com/admin/dns).
+2. **Set Permissions on Server:**
+```bash
+sudo tailscale set --operator=$USER
+
+```
+
+
+3. **Generate Certificate:**
+```bash
+tailscale cert ubuntu-server-webs.tail07567a.ts.net
+
+```
+
+
+*This generates a `.crt` and `.key` file in your home directory.*
+
+---
+
+### 4. OpenClaw Configuration
+
+Now, configure OpenClaw to use the Tailscale "Serve" mode and restricted origins.
+
+1. **Remove any invalid keys:**
+```bash
+openclaw config set gateway.tailscale.hostname --delete
+
+```
+
+
+2. **Set Gateway to Serve Mode:**
+```bash
+openclaw config set gateway.tailscale.mode "serve"
+
+```
+
+
+3. **Restrict Allowed Origins (Security):**
+```bash
+openclaw config set gateway.controlUi.allowedOrigins "['https://ubuntu-server-webs.tail07567a.ts.net']"
+
+```
+
+
+4. **Restart the Gateway:**
+```bash
+openclaw gateway restart
+
+```
+
+
+
+---
+
+### 5. Client Access & Device Pairing
+
+1. **Open Browser on Windows:** Go to `https://ubuntu-server-webs.tail07567a.ts.net`.
+2. **Enter Token:** Get your token from the server via `openclaw config get gateway.auth.token`.
+3. **Approve the Device (Pairing):**
+* The dashboard will show "Disconnected" or "Pairing Required."
+* On the Hetzner terminal, find your Request ID:
+```bash
+openclaw devices list
+
+```
+
+
+* Approve your specific ID:
+```bash
+openclaw devices approve <YOUR-REQUEST-ID>
+
+```
+
+
+
+
+
+---
+
+### Summary of Connectivity
+
+| Feature | Setting |
+| --- | --- |
+| **URL** | `https://your-server.tailxxxx.ts.net` |
+| **Encryption** | End-to-End via Tailscale SSL |
+| **Authentication** | API Token + Device Pairing |
+| **Public Ports** | None (except Tailscale UDP) |
+
+**Would you like me to convert this into a `.md` file on your server directly so you always have it for reference?**
